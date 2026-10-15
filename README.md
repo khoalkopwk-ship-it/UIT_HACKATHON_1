@@ -55,13 +55,13 @@ Kiến trúc dự án được thiết kế theo mô hình **Hybrid Retrieval Pi
                    [Top 5 Document IDs / Submission]
 ```
 
-### 2.1. Tầng Tiền xử lý & Chunking (Điểm sáng kỹ thuật vượt trội)
+### 1.2. Tầng Tiền xử lý & Chunking (Điểm sáng kỹ thuật vượt trội)
 * Khác biệt hoàn toàn với cách chunking cố định độ dài cơ bản (Fixed-size chunking như cắt mỗi 512 từ có overlap), dự án xây dựng bộ parser phân tích cú pháp phân cấp pháp luật Việt Nam (`algorithms/chunking/preprocess_chunking_legal.py`).
 * **Đơn vị nguyên tử (Atomic Unit):** Coi toàn bộ một "Điều" là một đơn vị ngữ nghĩa hoàn chỉnh ($\le 1500$ từ không bị cắt xé). Chỉ split nội bộ theo Khoản/Điểm nếu Điều vượt ngưỡng quá dài. Điều này đảm bảo trọn vẹn ngữ cảnh pháp lý (chủ thể + điều kiện + chế tài).
 * **Xử lý số hiệu pháp quy phức tạp:** Bắt chuẩn các dạng `Điều 21bis`, `Điều 12a`, xử lý ngắt dòng `Điều` / `20. Tiêu đề` và loại trừ các bẫy false-positive (ví dụ: *"theo Điều 7 của CISPR..."*).
 * **Audit Pipeline:** Tích hợp kiểm định toàn vẹn dữ liệu, đảm bảo không bị thất thoát token (zero-loss guarantee).
 
-### 2.2. Tầng Truy vấn lai (Hybrid Retrieval)
+### 1.3. Tầng Truy vấn lai (Hybrid Retrieval)
 * **Sparse Search (BM25 tùy biến):** 
   * Tự cài đặt BM25 với cấu trúc Inverted Index tối ưu bằng NumPy.
   * Bộ Tokenizer đặc chế bằng Regular Expression để tách chuẩn các ký tự số hiệu văn bản (`/`, `-`, `.`), giải quyết triệt để vấn đề truy vấn theo số hiệu nghị định/thông tư mà các mô hình ngôn ngữ lớn hay bỏ sót.
@@ -72,16 +72,14 @@ Kiến trúc dự án được thiết kế theo mô hình **Hybrid Retrieval Pi
   * Ứng dụng **NumPy Memory-Mapped file (`open_memmap`)** và **Streaming Corpus** để ghi trực tiếp vector embedding xuống ổ đĩa, xử lý hàng chục nghìn chunk mà không gây quá tải RAM hệ thống.
   * Tự động kích hoạt FP16 Half-precision khi có CUDA, cân đối batch size (batch 4 cho indexing, batch 8 cho inference).
 
-### 2.3. Tầng Hợp nhất thứ hạng & Gom cụm (Fusion & Aggregation)
+### 1.4. Tầng Hợp nhất thứ hạng & Gom cụm (Fusion & Aggregation)
 * **Weighted Reciprocal Rank Fusion (RRF, $k=60$):**
   * BM25 cho điểm số không giới hạn trên, trong khi Dense Retriever trả về Cosine Similarity trong khoảng $[-1, 1]$. Việc cộng điểm tuyến tính (Score fusion) sẽ làm lệch kết quả.
   * Dự án sử dụng RRF dựa trên thứ hạng (Rank-based), hoàn toàn miễn nhiễm với sự khác biệt về phân phối điểm số của hai bộ tìm kiếm.
 * **Chunk-to-Document Aggregation:**
   * Tìm kiếm diễn ra ở tầng Chunk (độ đặc hiệu cao), nhưng đề bài yêu cầu nộp ID văn bản cha. Thuật toán tổng hợp điểm số (Max-pooling/Best-rank) gom cụm các chunk có cùng `source_id`, đảm bảo chọn ra đúng 5 văn bản có độ liên quan cao nhất mà không bị trùng lặp.
 
----
-
-## 3. CÁC YẾU TỐ CỐT LÕI VÀ BÀI HỌC KINH NGHIỆM RÚT RA
+## 2. CÁC YẾU TỐ CỐT LÕI VÀ BÀI HỌC KINH NGHIỆM RÚT RA
 
 1. **"Data Chunking quyết định trần chất lượng của hệ thống IR/RAG":**
    * Nếu chunking cắt đôi một Điều luật (làm tách rời điều kiện áp dụng và mức phạt), mô hình embedding tối tân đến đâu cũng không thể cứu vãn. Chunking theo cấu trúc tài liệu miền chuyên sâu (Domain-specific hierarchical chunking) chính là yếu tố tạo ra bước nhảy vọt về Recall.
@@ -97,17 +95,15 @@ Kiến trúc dự án được thiết kế theo mô hình **Hybrid Retrieval Pi
 5. **"Tính ổn định và toàn vẹn dữ liệu (Production-readiness)":**
    * Sử dụng mã băm SHA256 để liên kết và kiểm tra tính nhất quán giữa file corpus thô, index BM25 và file npy embedding, ngăn ngừa hoàn toàn lỗi lệch chỉ mục (index mismatch).
 
----
+## 3. KIẾN THỨC HỌC ĐƯỢC THÔNG QUA CUỘC THI
 
-## 4. KIẾN THỨC HỌC ĐƯỢC THÔNG QUA CUỘC THI
-
-### 4.1. Kiến thức & Kỹ năng kỹ thuật cứng (Hard Skills):
+### 3.1. Kiến thức & Kỹ năng kỹ thuật cứng (Hard Skills):
 * **Xử lý ngôn ngữ tự nhiên chuyên sâu (NLP & Text Processing):** Xây dựng parser phân tích tài liệu hành chính phức tạp dựa trên regex và state machine.
 * **Information Retrieval (IR) & Search Engine:** Tự triển khai Inverted Index cho BM25; cấu hình và tinh chỉnh Dense Embedding (BGE-M3).
 * **Kỹ thuật RAG & Ranking:** Làm chủ thuật toán Reciprocal Rank Fusion (RRF), Chunk-to-Document score aggregation.
 * **Tối ưu hóa hiệu năng và bộ nhớ:** Sử dụng `numpy.memmap`, generators/streaming IO, mixed-precision FP16, batching trên PyTorch.
 * **Đánh giá hệ thống IR:** Nắm vững và phân tích chuyên sâu các chỉ số Information Retrieval: Recall@K, Precision@K, MRR, NDCG.
 
-### 4.2. Tư duy kỹ sư phần mềm & AI (Engineering Mindset):
+### 3.2. Tư duy kỹ sư phần mềm & AI (Engineering Mindset):
 * Kiến trúc hệ thống dạng mô-đun (Clean Architecture): tách biệt rõ rệt các tầng `chunking`, `embedding`, `retrieval`, `reranking`, `generation`.
 * Tư duy thực nghiệm: Thiết lập quy trình đánh giá offline (`evaluate.py` trên tập train) trước khi áp dụng cho tập test.
