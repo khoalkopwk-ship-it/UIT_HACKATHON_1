@@ -1,0 +1,5 @@
+numpy>=1.26
+torch>=2.2
+FlagEmbedding>=1.2.11
+transformers>=4.44
+tqdm>=4.66
